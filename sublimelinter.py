@@ -10,6 +10,7 @@
 
 """This module provides the SublimeLinter plugin class and supporting methods."""
 
+import html
 import os
 import re
 
@@ -21,6 +22,7 @@ from .lint.highlight import HighlightSet
 from .lint.queue import queue
 from .lint import persist, util
 from string import Template
+from pprint import pprint
 
 
 def plugin_loaded():
@@ -392,16 +394,16 @@ class SublimeLinter(sublime_plugin.EventListener):
 
                         if len(line_errors) > 1:
                             last = first + len(line_errors) - 1
-                            status = '{}-{} of {} errors: '.format(first, last, count)
+                            status = '[{}-{} of {} issues] '.format(first, last, count)
                         else:
-                            status = '{} of {} errors: '.format(first, count)
+                            status = '[{} of {} issues] '.format(first, count)
                     else:
-                        status = 'Error: '
+                        status = ''
 
                     status += '; '.join(line_errors)
                     self.open_tooltip(lineno, line_errors)
                 else:
-                    status = '%i error%s' % (count, plural)
+                    status = '[%i issue%s]' % (count, plural)
                     self.close_tooltip()
 
                 view.set_status('sublimelinter', status)
@@ -425,16 +427,51 @@ class SublimeLinter(sublime_plugin.EventListener):
 
     def open_tooltip(self, line, errors):
         template = self.get_template()
-
         if not template:
             return
 
+        stylesheet = '''
+            <style>
+                body {
+                    background-color: #000000;
+                    margin: -1px 0px;
+                    font-size: 14px;
+                }
+                .error, .warning {
+                    color: #FFFFFF;
+                    margin: 5px 5px 10px 5px;
+                }
+                .error .type, .warning .type{
+                    color: #FFFFFF;
+                    padding: 0px 5px 3px 5px;
+                    border-radius: 3px;
+                }
+                .error .type {
+                    background-color: red;
+                }
+                .warning .type {
+                    background-color: orange;
+                }
+            </style>
+        '''
+
+        html_error = ''
+        for error in errors:
+            if error.startswith('[Error]'):
+                error_type = 'error'
+                error_message = error[7:]
+            else:
+                error_type = 'warning'
+                error_message = error[9:]
+            html_error += '<div class="' + error_type + '"><span class="type">' + error_type.upper() + '</span> ' + html.escape(error_message, quote=False) + '</div>'
+
+        tooltip_content = '<body>' + stylesheet + html_error + '</body>'
         active_view = self.get_active_view()
-        tooltip_content = template.substitute(line=line, message='<br />'.join(errors), font_size=persist.settings.get('tooltip_fontsize'))
+        # tooltip_content = template.substitute(line=line, message='<br />'.join(errors), font_size=persist.settings.get('tooltip_fontsize'))
         active_view.show_popup(tooltip_content,
                                 flags=sublime.HIDE_ON_MOUSE_MOVE_AWAY,
                                 location=-1,
-                                max_width=600)
+                                max_width=1000)
 
     def close_tooltip(self):
         active_view = self.get_active_view()
